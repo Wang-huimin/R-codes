@@ -1,2 +1,2 @@
-# R and Pyhton codes
-R and Pyhton programming Codes
+# R codes
+R programming Codes for My Projects
