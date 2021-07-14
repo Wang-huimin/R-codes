@@ -9,84 +9,6 @@ library(ggpubr)
 
 setwd("D:/Kuliah/Master/Research Seminar/Data Nederland")
 jorda.raw <- read_excel("r_data.xlsx", sheet = "seasonally adjusted")
-jorda.growth <- read_excel("r_data.xlsx", sheet = "growth")
-
-# Generating shock variables
-rgdp_pot6 <- jorda.raw[c("rgdp_pot6")]
-bb <- (jorda.raw[c("rgov_exp")] - jorda.raw[c("rgov_rev")])/jorda.raw[c("rgdp_pot6")]
-bp <-  jorda.raw[c("rgov")] / jorda.raw[c("rgdp_pot6")] * jorda.raw[c("pop")]
-rgdp_growth <- jorda.raw[c("rgdp_growth")]
-
-rgdp_growth_app <- approx(rgdp_growth, n=104)
-for(i in 1:4) {
-  rgdp_growth[i,1] <- rgdp_growth_app$y[i]
-}
-
-rgdpg_7ma_mod <- data.frame(rollmean(rgdp_growth, k=7))
-add1 <- data.frame(rep(0, 6))
-names(add1) <- "rgdp_growth"
-rgdpg_7ma_ <- rbind(add1, rgdpg_7ma_mod)
-
-rgdpg_4ma <- data.frame(rollmean(rgdp_growth, k=4))
-add2 <- data.frame(rep(0, 3))
-names(add2) <- "rgdp_growth"
-rgdpg_4ma_ <- rbind(add2, rgdpg_4ma)
-
-rgdpg_5ma <- jorda.raw[c("rgdpg_5ma")]
-rgdpg_7ma <- jorda.raw[c("rgdpg_7ma")]
-# bb <- lag(bb, n=4)
-rec_date <- jorda.raw[c("fdum_reces")]
-rec_date1 <- jorda.raw[c("rec_date1")]
-rec_date2 <- jorda.raw[c("rec_date2")]
-rec_date3 <- jorda.raw[c("rec_date3")]
-
-bb.approx <- approx(bb, n=104)
-bp.approx <- approx(bp, n=104)
-rgdpg_5ma.app <- approx(rgdpg_5ma, n=104)
-rgdpg_7ma.app <- approx(rgdpg_7ma, n=104)
-
-for(i in 1:4) {
-  bp[i,1] <- bp.approx$y[i]
-  rgdpg_5ma[i,1] <- rgdpg_5ma.app$y[i]
-  rgdpg_7ma[i,1] <- rgdpg_7ma.app$y[i]
-  rec_date[i,1] <- 1 
-  bb[i,1] <- bb.approx$y[i]
-}
-
-# for(i in 1:8) {
-# bb[i,1] <- bb.approx$y[i]
-# }
-
-# Shock variables are : 1) bp (Blanchard-Perotti)
-#                       2) bb (Balance budget lag 4)
-#                       3) rgdpg_5ma
-#                       4) rgdpg_7ma
-
-# Generating state variables
-unmp <- as.matrix(jorda.raw[c("unmp")])
-unmp_hp <- hp_filter(unmp, lambda = 1000000)
-unmp_trend <- unmp_hp[[2]]
-
-jorda.raw <- jorda.raw %>%
-  mutate(if_else(unmp>6.5,1,0)) %>%
-  mutate(if_else(unmp>unmp_trend,1,0))
-
-unmp_dum1 <- jorda.raw[,18]
-colnames(unmp_dum1) <- c("dummy_6.5")
-unmp_dum2 <- jorda.raw[,19]
-colnames(unmp_dum2) <- c("dummy_hp")
-
-sum(unmp_dum1==1)
-sum(unmp_dum1==0)
-sum(unmp_dum2==1)
-sum(unmp_dum2==0)
-sum(rec_date==1)
-sum(rec_date==0)
-
-# State variables: 1) unmp_dum1
-#                  2) unmp_dum2
-#                  3) rec_date
-#                  4) rgdpg_5ma - 0.8
 
 # Generating endogenous variables
 rgdp <- log(jorda.raw[c("rgdp")]/jorda.raw[c("pop")])
@@ -101,25 +23,8 @@ rgdp.g1 <- diff(log(jorda.raw[,"rgdp"]))
 rgov.g1 <- diff(log(jorda.raw[,"rgov"]))
 rtax.g1 <- diff(log(jorda.raw[,"rtax"]))
 
-rgdp.g <- jorda.growth[,"gdp"]/100
-rgov.g <- jorda.growth[,"gov"]/100
-rtax.g <- jorda.growth[,"tax"]/100
-
-# rgdp.approx <- approx(rgdp, n=104)
-# rgov.approx <- approx(rgov, n=104)
-# rtax.approx <- approx(rtax, n=104)
-
-# for(i in 1:4) {
-  #rgdp[i,1] <- rgdp.approx$y[i]
-  #rgov[i,1] <- rgov.approx$y[i]
-  #rtax[i,1] <- rtax.approx$y[i]
-#}
-
 endog_data <- cbind(rgov, rtax, rgdp)
-endog_data2 <- cbind(rgov.g, rtax.g, rgdp.g)
-endog_data3 <- cbind(rgov.g1, rtax.g1, rgdp.g1)
 endog_data4 <- cbind(rgov.as, rtax.as, rgdp.as)
-endog_data.ts <- ts(endog_data, star=c(1995,1), end=c(2020,4), frequency = 4)
 
 # Interbank rate and unmp rate
 int <- jorda.raw[c("int")]
@@ -131,7 +36,6 @@ rgdpg_7ma_ <- data.frame(rgdpg_7ma_[5:104,])
 int <- data.frame(int[5:104,])
 unmp <- data.frame(unmp[5:104,])
 rec_date <- data.frame(rec_date1[5:104,])
-rgdpg_7ma <- data.frame(rgdpg_7ma[5:104,])
 
 # Shock linear
 shockl <- data.frame(endog_data4[,1])
@@ -202,20 +106,13 @@ multipliers_low <- multipliers(results_lin_iv$irf_lin_low)
 # Standard error (Linear)
 se_lin <- (multipliers_up - multipliers_mean)/1.96
 
-# Make and save linear plots
-iv_lin_plots <- plot_lin(results_lin_iv)
-
 # Nonlinear shock using Blanchard - Perotti Shock
 shocknl <- shockl
-#               endog_data2 <- cbind(endog_data["rgov"], endog_data["rgdp"])
-# Use moving average growth rate of GDP as exogenous variable
-exog_data <- rgdpg_7ma
 # Use OECD recession date as switching variable
 switching_variable <- if_else(rec_date >= 1, 1, 0)
 # Estimate nonlinear model
 results_nl_iv <- lp_nl_iv(endog_data = endog_data4, lags_endog_nl = 4,
-                          shock = shocknl, 
-                          # exog_data = exog_data, lags_exog = 4, 
+                          shock = shocknl,
                           trend = 0,
                           confint = 1.96, hor = 25,
                           switching = switching_variable, use_hp = FALSE, use_logistic = FALSE,
@@ -247,9 +144,9 @@ colnames(table1) <- c("Confidence Interval", "Linear", "Expansion periods", "Rec
 
 # Creating IRF graph (one IRF graph)
 # Response of rgov and rgdp
-rata2 <- results_lin_iv$irf_lin_mean[1,]
-lower <- results_lin_iv$irf_lin_low[1,]
-upper <- results_lin_iv$irf_lin_up[1,]
+rata2 <- results_lin_iv$irf_lin_mean[3,]
+lower <- results_lin_iv$irf_lin_low[3,]
+upper <- results_lin_iv$irf_lin_up[3,]
 period <- seq(1:length(rata2))
 kategori1 <- rep(1, length(rata2))
 part1 <- data.frame(cbind(period, rata2, lower, upper, kategori1))
@@ -258,9 +155,9 @@ part1$group <- "linear"
 part1_mean <- part1 %>%
   select(period, mean, group)
 
-rata2 <- results_nl_iv$irf_s1_mean[1,]
-lower <- results_nl_iv$irf_s1_low[1,]
-upper <- results_nl_iv$irf_s1_up[1,]
+rata2 <- results_nl_iv$irf_s1_mean[3,]
+lower <- results_nl_iv$irf_s1_low[3,]
+upper <- results_nl_iv$irf_s1_up[3,]
 period <- seq(1:length(rata2))
 kategori2 <- rep(2, length(rata2))
 part2 <- data.frame(cbind(period, rata2, lower, upper, kategori2))
@@ -269,9 +166,9 @@ part2$group <- "expansion"
 part2_mean <- part2 %>%
   select(period, mean, group)
 
-rata2 <- results_nl_iv$irf_s2_mean[1,]
-lower <- results_nl_iv$irf_s2_low[1,]
-upper <- results_nl_iv$irf_s2_up[1,]
+rata2 <- results_nl_iv$irf_s2_mean[3,]
+lower <- results_nl_iv$irf_s2_low[3,]
+upper <- results_nl_iv$irf_s2_up[3,]
 period <- seq(1:length(rata2))
 kategori3 <- rep(3, length(rata2))
 part3 <- data.frame(cbind(period, rata2, lower, upper, kategori3))
@@ -284,38 +181,31 @@ library(ggplot2)
 responses <- rbind(part2, part3)
 responses_mean <- rbind(part1_mean, part2_mean, part3_mean)
 
-ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state1_plot <- ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_line()
+state1_plot <- state1_plot + scale_color_manual(values=c("#0000CD", "#228B22", "#FF4500"))
+state1_plot
 
-ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state2_plot <- ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+state2_plot <- state2_plot + scale_fill_manual(values=c("#0000CD", "#FF4500")) + scale_color_manual(values=c("#0000CD", "#FF4500"))
+state2_plot
 
-ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+linear_plot <- ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+linear_plot <- linear_plot + scale_color_manual(values="#228B22") + scale_fill_manual(values="#228B22") 
+linear_plot
 
+combine_plot <- list()
+combine_plot[[1]] <- linear_plot
+combine_plot[[2]] <- state1_plot
+combine_plot[[3]] <- state2_plot
+plots_all <- sapply(combine_plot, ggplotGrob)
+marrangeGrob(plots_all, nrow = 1, ncol = 3, top = NULL)
 
-
-
-# Make and save nonlinear plots
-plots_nl_iv <- plot_nl(results_nl_iv)
-# Make list to save all plots
-combine_plots <- list()
-# Save linear plots in list
-combine_plots[[1]] <- iv_lin_plots[[1]]
-combine_plots[[2]] <- iv_lin_plots[[3]]
-# Save nonlinear plots for expansion period
-combine_plots[[3]] <- plots_nl_iv$gg_s1[[1]]
-combine_plots[[4]] <- plots_nl_iv$gg_s1[[2]]
-# Save nonlinear plots for recession period
-combine_plots[[5]] <- plots_nl_iv$gg_s2[[1]]
-combine_plots[[6]] <- plots_nl_iv$gg_s2[[2]]
-# Show all plots
-lin_plots_all <- sapply(combine_plots, ggplotGrob)
-marrangeGrob(lin_plots_all, nrow = 2, ncol = 3, top = NULL)
-
-# Switching Variable : Unemployment Rate
+# Switching Variable : Unemployment Rate (HP Filter)
 
 # Nonlinear shock using Blanchard - Perotti Shock
 shocknl2 <- shockl
@@ -326,12 +216,11 @@ exog_data2 <- unmp/100
 switching_variable2 <- unmp/100
 # Estimate nonlinear model
 results_nl_iv2 <- lp_nl_iv(endog_data = endog_data4, lags_endog_nl = 4,
-                           shock = shocknl2, 
-                           # exog_data = exog_data2, lags_exog = 4, 
+                           shock = shocknl2,
                            trend = 0,
                            confint = 1.96, hor = 25,
                            switching = switching_variable2, use_hp = TRUE, gamma = 3,
-                           lambda = 1600, use_logistic = TRUE)
+                           lambda = 1000000, use_logistic = TRUE)
 
 # Multipliers in non linear (unemployment rate)
 multipliers_s1_up_unmp <- multipliers(results_nl_iv2$irf_s1_up)
@@ -396,38 +285,24 @@ library(ggplot2)
 responses <- rbind(part2, part3)
 responses_mean <- rbind(part1_mean, part2_mean, part3_mean)
 
-ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state1_plot <- ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_line()
+state1_plot <- state1_plot + scale_color_manual(values=c("#0000CD", "#228B22", "#FF4500"))
+state1_plot
 
-ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state2_plot <- ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+state2_plot <- state2_plot + scale_fill_manual(values=c("#0000CD", "#FF4500")) + scale_color_manual(values=c("#0000CD", "#FF4500"))
+state2_plot
 
-ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+linear_plot <- ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+linear_plot <- linear_plot + scale_color_manual(values="#228B22") + scale_fill_manual(values="#228B22") 
+linear_plot
 
-
-
-# Make and save nonlinear plots
-plots_nl_iv2 <- plot_nl(results_nl_iv2)
-# Make list to save all plots
-combine_plots <- list()
-# Save linear plots in list
-combine_plots[[1]] <- iv_lin_plots[[1]]
-combine_plots[[2]] <- iv_lin_plots[[3]]
-# Save nonlinear plots for expansion period
-combine_plots[[3]] <- plots_nl_iv2$gg_s1[[1]]
-combine_plots[[4]] <- plots_nl_iv2$gg_s1[[3]]
-# Save nonlinear plots for recession period
-combine_plots[[5]] <- plots_nl_iv2$gg_s2[[1]]
-combine_plots[[6]] <- plots_nl_iv2$gg_s2[[3]]
-# Show all plots
-lin_plots_all <- sapply(combine_plots, ggplotGrob)
-marrangeGrob(lin_plots_all, nrow = 2, ncol = 3, top = NULL)
-
-
-# Switching variable is unemployment rate (6.5%) ganti jadi 6%
+# Switching variable is unemployment rate (6%)
 
 # Nonlinear shock using Blanchard - Perotti Shock
 shocknl3 <- shockl
@@ -442,13 +317,12 @@ switching_variable3 <- if_else(unmp>6,1,0)
 # Estimate nonlinear model
 results_nl2_iv3 <- lp_nl_iv(endog_data = endog_data4, lags_endog_nl = 4,
                             shock = shocknl3, 
-                            # exog_data = exog_data3, lags_exog = 0, 
                             trend = 0,
-                            confint = 1.96, hor = 20,
+                            confint = 1.96, hor = 25,
                             switching = switching_variable3, use_hp = FALSE, use_logistic = FALSE,
                             lag_switching = TRUE)
 
-# Multipliers in non linear (unemployment rate 6.5%)
+# Multipliers in non linear (unemployment rate 6%)
 multipliers_s1_up_unmp1 <- multipliers(results_nl2_iv3$irf_s1_up)
 multipliers_s1_mean_unmp1 <- multipliers(results_nl2_iv3$irf_s1_mean)
 multipliers_s1_low_unmp1 <- multipliers(results_nl2_iv3$irf_s1_low)
@@ -457,14 +331,11 @@ multipliers_s2_up_unmp1 <- multipliers(results_nl2_iv3$irf_s2_up)
 multipliers_s2_mean_unmp1 <- multipliers(results_nl2_iv3$irf_s2_mean)
 multipliers_s2_low_unmp1 <- multipliers(results_nl2_iv3$irf_s2_low)
 
-multipliers_s1_mean_unmp1
-multipliers_s2_mean_unmp1
-
-# Standard error (unmp 6.5%)
+# Standard error (unmp 6%)
 se_s1_unmp1 <- (multipliers_s1_up_unmp1 - multipliers_s1_mean_unmp1)/1.96
 se_s2_unmp1 <- (multipliers_s2_up_unmp1 - multipliers_s2_mean_unmp1)/1.96
 
-# Creating a table for unemployment rate (threshold = 6.5%)
+# Creating a table for unemployment rate (threshold > 6%)
 table3 <- table_func(multipliers_mean, multipliers_up, multipliers_low,
                      multipliers_s1_mean_unmp1, multipliers_s1_up_unmp1, multipliers_s1_low_unmp1,
                      multipliers_s2_mean_unmp1, multipliers_s2_up_unmp1, multipliers_s2_low_unmp1)
@@ -485,9 +356,9 @@ part1$group <- "linear"
 part1_mean <- part1 %>%
   select(period, mean, group)
 
-rata2 <- results_nl2_iv3$irf_s1_mean[1,]
-lower <- results_nl2_iv3$irf_s1_low[1,]
-upper <- results_nl2_iv3$irf_s1_up[1,]
+rata2 <- results_nl2_iv3$irf_s1_mean[3,]
+lower <- results_nl2_iv3$irf_s1_low[3,]
+upper <- results_nl2_iv3$irf_s1_up[3,]
 period <- seq(1:length(rata2))
 kategori2 <- rep(2, length(rata2))
 part2 <- data.frame(cbind(period, rata2, lower, upper, kategori2))
@@ -496,9 +367,9 @@ part2$group <- "expansion"
 part2_mean <- part2 %>%
   select(period, mean, group)
 
-rata2 <- results_nl2_iv3$irf_s2_mean[1,]
-lower <- results_nl2_iv3$irf_s2_low[1,]
-upper <- results_nl2_iv3$irf_s2_up[1,]
+rata2 <- results_nl2_iv3$irf_s2_mean[3,]
+lower <- results_nl2_iv3$irf_s2_low[3,]
+upper <- results_nl2_iv3$irf_s2_up[3,]
 period <- seq(1:length(rata2))
 kategori3 <- rep(3, length(rata2))
 part3 <- data.frame(cbind(period, rata2, lower, upper, kategori3))
@@ -511,50 +382,30 @@ library(ggplot2)
 responses <- rbind(part2, part3)
 responses_mean <- rbind(part1_mean, part2_mean, part3_mean)
 
-ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state1_plot <- ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_line()
+state1_plot <- state1_plot + scale_color_manual(values=c("#0000CD", "#228B22", "#FF4500"))
+state1_plot
 
-ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state2_plot <- ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+state2_plot <- state2_plot + scale_fill_manual(values=c("#0000CD", "#FF4500")) + scale_color_manual(values=c("#0000CD", "#FF4500"))
+state2_plot
 
-ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+linear_plot <- ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
-
-
-
-# Make and save nonlinear plots
-plots_nl_iv3 <- plot_nl(results_nl2_iv3)
-# Make list to save all plots
-combine_plots <- list()
-# Save linear plots in list
-combine_plots[[1]] <- iv_lin_plots[[1]]
-combine_plots[[2]] <- iv_lin_plots[[3]]
-# Save nonlinear plots for expansion period
-combine_plots[[3]] <- plots_nl2_iv3$gg_s1[[1]]
-combine_plots[[4]] <- plots_nl2_iv3$gg_s1[[3]]
-# Save nonlinear plots for recession period
-combine_plots[[5]] <- plots_nl2_iv3$gg_s2[[1]]
-combine_plots[[6]] <- plots_nl2_iv3$gg_s2[[3]]
-# Show all plots
-lin_plots_all <- sapply(combine_plots, ggplotGrob)
-marrangeGrob(lin_plots_all, nrow = 2, ncol = 3, top = NULL)
-
+linear_plot <- linear_plot + scale_color_manual(values="#228B22") + scale_fill_manual(values="#228B22") 
+linear_plot
 
 # Multipliers of government spending in the ZLB
 
 # Use zero lower bound as switching variable
-zlb_dummy <- if_else(int<=1.5, 1, 0)
+zlb_dummy <- if_else(int<1, 1, 0)
 switching_variable4 <- zlb_dummy
-# Estimate nonlinear model
-results_nl <- lp_nl(endog_data4,
-                    lags_endog_lin = 4, 
-                    lags_endog_nl = 4,
-                    trend = 0, shock_type = 0,
-                    confint = 1.96, hor = 20,
-                    switching = switching_variable4, lag_switching = FALSE, use_logistic = FALSE)
 
+# Estimate nonlinear model
 results_nl_iv4 <- lp_nl_iv(endog_data = endog_data4, lags_endog_nl = 4,
                           shock = shocknl, 
                           trend = 0,
@@ -595,9 +446,9 @@ part1$group <- "linear"
 part1_mean <- part1 %>%
   select(period, mean, group)
 
-rata2 <- results_nl_iv4$irf_s1_mean[1,]
-lower <- results_nl_iv4$irf_s1_low[1,]
-upper <- results_nl_iv4$irf_s1_up[1,]
+rata2 <- results_nl_iv4$irf_s1_mean[3,]
+lower <- results_nl_iv4$irf_s1_low[3,]
+upper <- results_nl_iv4$irf_s1_up[3,]
 period <- seq(1:length(rata2))
 kategori2 <- rep(2, length(rata2))
 part2 <- data.frame(cbind(period, rata2, lower, upper, kategori2))
@@ -606,9 +457,9 @@ part2$group <- "normal"
 part2_mean <- part2 %>%
   select(period, mean, group)
 
-rata2 <- results_nl_iv4$irf_s2_mean[1,]
-lower <- results_nl_iv4$irf_s2_low[1,]
-upper <- results_nl_iv4$irf_s2_up[1,]
+rata2 <- results_nl_iv4$irf_s2_mean[3,]
+lower <- results_nl_iv4$irf_s2_low[3,]
+upper <- results_nl_iv4$irf_s2_up[3,]
 period <- seq(1:length(rata2))
 kategori3 <- rep(3, length(rata2))
 part3 <- data.frame(cbind(period, rata2, lower, upper, kategori3))
@@ -621,33 +472,22 @@ library(ggplot2)
 responses <- rbind(part2, part3)
 responses_mean <- rbind(part1_mean, part2_mean, part3_mean)
 
-ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state1_plot <- ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_line()
+state1_plot <- state1_plot + scale_color_manual(values=c("#0000CD", "#228B22", "#FF4500"))
+state1_plot
 
-ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state2_plot <- ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+state2_plot <- state2_plot + scale_fill_manual(values=c("#0000CD", "#FF4500")) + scale_color_manual(values=c("#0000CD", "#FF4500"))
+state2_plot
 
-ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+linear_plot <- ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
-
-# Make and save nonlinear plots
-plots_nl <- plot_nl(results_nl)
-# Make list to save all plots
-combine_plots <- list()
-# Save linear plots in list
-combine_plots[[1]] <- iv_lin_plots[[1]]
-combine_plots[[2]] <- iv_lin_plots[[3]]
-# Save nonlinear plots for expansion period
-combine_plots[[3]] <- plots_nl$gg_s1[[1]]
-combine_plots[[4]] <- plots_nl$gg_s1[[3]]
-# Save nonlinear plots for recession period
-combine_plots[[5]] <- plots_nl$gg_s2[[1]]
-combine_plots[[6]] <- plots_nl$gg_s2[[3]]
-# Show all plots
-lin_plots_all <- sapply(combine_plots, ggplotGrob)
-marrangeGrob(lin_plots_all, nrow = 2, ncol = 3, top = NULL)
+linear_plot <- linear_plot + scale_color_manual(values="#228B22") + scale_fill_manual(values="#228B22") 
+linear_plot
 
 # All multipliers table
 table_mult <- cbind(table1, table2[,3:4], table3[,3:4], table4[,3:4])
@@ -661,7 +501,7 @@ library(writexl)
 write_xlsx(table_all, "multipliers and se.xlsx")
 
 
-#_______________________CONTROLLING EXPECTATIONS_________________________#
+#_______________________CONTROLLING FOR EXPECTATIONS_________________________#
 library(forecast)
 library(stats)
 
@@ -747,14 +587,13 @@ std.controls2 <- data.frame(rtax.diff)
 endog.new2 <- cbind(vec.shock.exp, endog_data)
 
 # Shock linear
-shockl2 <- data.frame(vec.shock.exp[5:104])
+shockl2 <- data.frame(vec.shock.exp)
 ts.plot(shockl2)
 
 # Estimate linear model
-results_lin2_iv <- lp_lin_iv(endog_data = endog_data4, lags_endog_lin = 4,
-                             # exog_data = std.controls, lags_exog = 4,
+results_lin2_iv <- lp_lin_iv(endog_data = endog.new2, lags_endog_lin = 4,
                              shock = shockl2, trend = 0,
-                             confint = 1.96, hor = 25)
+                             confint = 1.96, hor = 20)
 plot(results_lin2_iv)
 
 # Multipliers (Linear)
@@ -774,9 +613,9 @@ multipliers2 <- function(x) {
   return(multipliers)
 }
 
-multipliers2_mean <- multipliers(results_lin2_iv$irf_lin_mean)
-multipliers2_up <- multipliers(results_lin2_iv$irf_lin_up)
-multipliers2_low <- multipliers(results_lin2_iv$irf_lin_low)
+multipliers2_mean <- multipliers2(results_lin2_iv$irf_lin_mean)
+multipliers2_up <- multipliers2(results_lin2_iv$irf_lin_up)
+multipliers2_low <- multipliers2(results_lin2_iv$irf_lin_low)
 
 # Standard error (Linear)
 se_lin2 <- abs((multipliers2_up - multipliers2_mean)/1.96)
@@ -785,30 +624,25 @@ se_lin2 <- abs((multipliers2_up - multipliers2_mean)/1.96)
 iv_lin2_plots <- plot_lin(results_lin2_iv)
 
 # Use OECD recession date as switching variable
-switching_variable <- if_else(rec_date >= 1, 1, 0)
-exog_data <- rgdpg_7ma_
-# switching_variable <- if_else(rec_date >= 1, 1, 0)
+switching_variable <- if_else(rec_date > 0.5, 1, 0)
+exog_data <- rgdpg_7ma
 
 # Estimate nonlinear model
-results_nl2_iv <- lp_nl_iv(endog_data = endog_data4, lags_endog_nl = 4,
+results_nl2_iv <- lp_nl_iv(endog_data = endog.new2, lags_endog_nl = 4,
                            shock = shockl2,  
-                           # exog_data = exog_data, lags_exog = 3, 
-                           trend = 0,
+                           exog_data = exog_data, lags_exog = 3, 
+                           trend = 1,
                            confint = 1.96, hor = 25,
-                           switching = switching_variable, use_hp = FALSE, use_logistic = FALSE,
-                           lag_switching = FALSE)
+                           switching = switching_variable, use_hp = FALSE, use_logistic = FALSE)
 
-# plot(results_nl2_iv)
 # Multipliers in non linear (recession dates)
-multipliers2_s1_up_rec <- multipliers(results_nl2_iv$irf_s1_up)
-multipliers2_s1_mean_rec <- multipliers(results_nl2_iv$irf_s1_mean)
-multipliers2_s1_low_rec <- multipliers(results_nl2_iv$irf_s1_low)
+multipliers2_s1_up_rec <- multipliers2(results_nl2_iv$irf_s1_up)
+multipliers2_s1_mean_rec <- multipliers2(results_nl2_iv$irf_s1_mean)
+multipliers2_s1_low_rec <- multipliers2(results_nl2_iv$irf_s1_low)
 
-multipliers2_s2_up_rec <- multipliers(results_nl2_iv$irf_s2_up)
-multipliers2_s2_mean_rec <- multipliers(results_nl2_iv$irf_s2_mean)
-multipliers2_s2_low_rec <- multipliers(results_nl2_iv$irf_s2_low)
-multipliers2_s1_mean_rec
-multipliers2_s2_mean_rec
+multipliers2_s2_up_rec <- multipliers2(results_nl2_iv$irf_s2_up)
+multipliers2_s2_mean_rec <- multipliers2(results_nl2_iv$irf_s2_mean)
+multipliers2_s2_low_rec <- multipliers2(results_nl2_iv$irf_s2_low)
 
 # Standard error (OECD based recession dates)
 se2_s1_rec <- abs((multipliers2_s1_up_rec - multipliers2_s1_mean_rec)/1.96)
@@ -860,35 +694,22 @@ library(ggplot2)
 responses <- rbind(part2, part3)
 responses_mean <- rbind(part1_mean, part2_mean, part3_mean)
 
-ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state1_plot <- ggplot(responses_mean, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_line()
+state1_plot <- state1_plot + scale_color_manual(values=c("#0000CD", "#228B22", "#FF4500"))
+state1_plot
 
-ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+state2_plot <- ggplot(responses, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
+state2_plot <- state2_plot + scale_fill_manual(values=c("#0000CD", "#FF4500")) + scale_color_manual(values=c("#0000CD", "#FF4500"))
+state2_plot
 
-ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
+linear_plot <- ggplot(part1, aes(x = period, y = mean, group=group, col=group, fill=group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), linetype = 2, alpha = 0.2) +
   geom_line()
-
-
-
-# Make and save nonlinear plots
-plots_nl2_iv <- plot_nl(results_nl2_iv)
-# Make list to save all plots
-combine_plots <- list()
-# Save linear plots in list
-combine_plots[[1]] <- iv_lin2_plots[[2]]
-combine_plots[[2]] <- iv_lin2_plots[[4]]
-# Save nonlinear plots for expansion period
-combine_plots[[3]] <- plots_nl2_iv$gg_s1[[2]]
-combine_plots[[4]] <- plots_nl2_iv$gg_s1[[4]]
-# Save nonlinear plots for recession period
-combine_plots[[5]] <- plots_nl2_iv$gg_s2[[2]]
-combine_plots[[6]] <- plots_nl2_iv$gg_s2[[4]]
-# Show all plots
-lin_plots_all <- sapply(combine_plots, ggplotGrob)
-marrangeGrob(lin_plots_all, nrow = 2, ncol = 3, top = NULL)
+linear_plot <- linear_plot + scale_color_manual(values="#228B22") + scale_fill_manual(values="#228B22") 
+linear_plot
 
 # All multipliers table for unexpected shocks
 table_mult2 <- table5
